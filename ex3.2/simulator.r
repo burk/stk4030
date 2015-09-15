@@ -71,19 +71,21 @@ cv.ridge <- function(X, Y, testX, testY, parms) {
   return(t(errsq));
 }
 
+betadf <- data.frame();
+preddf <- data.frame();
+
 for (experiment in 1:3) {
-  niter <- c(10, 5, 3)[experiment];
-  ntrain <- c(20, 30, 40)[experiment];
-  
-  betadf <- data.frame();
+  niter <- c(1000, 500, 200)[experiment];
+  ntrain <- c(20, 100, 500)[experiment];
   
   for (iter in 1:niter) {
     cat("Iteration", iter, "\n");
     
+    # Ordinary Least Squares regression
     X.train <- exact.generateX(ntrain);
     Y.train <- exact.generateY(X.train);
     
-    X.test <- exact.generateX(100);
+    X.test <- exact.generateX(1000);
     Y.test <- exact.generateY(X.test);
     
     lmod <- lm(Y~., data.frame(X=X.train, Y=Y.train));
@@ -91,35 +93,48 @@ for (experiment in 1:3) {
     pred.ols.err <- pred.ols - Y.test;
     beta.ols.err <- unname(lmod$coef - exact.b);
     betadf <- rbind(betadf, data.frame(niter=niter, ntrain=ntrain, type="ols", err=beta.ols.err, beta=0:15));
+    preddf <- rbind(preddf, data.frame(niter=niter, ntrain=ntrain, type="ols", err=pred.ols.err));
     
+    # Best subset regression
     parms <- 1:dim(X.train)[2];
     out <- kfold.cv(10, X.train, Y.train, cv.leap, parms);
     leap.rmse <- sqrt(apply(out, 1, mean));
-    
     best <- which.min(leap.rmse);
     cat("Best subset size", best, "\n");
     bmod <- leaps(X.train, Y.train, nbest=1);
     include <- bmod$which[best,];
+    
     lbmod <- lm(Y~., data.frame(X=X.train[, include], Y=Y.train))
     pred.best <- predict(lbmod, data.frame(X=X.test[, include]));
     pred.best.err <- pred.best - Y.test;
     beta <- rep(0, exact.p + 1);
     beta[c(TRUE, include)] <- lbmod$coef
     beta.best.err <- unname(beta - exact.b);
-    rbind(betadf, data.frame(niter=niter, ntrain=ntrain, type="best", err=beta.best.err, beta=0:15));
+    betadf <- rbind(betadf, data.frame(niter=niter, ntrain=ntrain, type="best", err=beta.best.err, beta=0:15));
+    preddf <- rbind(preddf, data.frame(niter=niter, ntrain=ntrain, type="best", err=pred.best.err));
     
-    parms <- c(5000, 1000, 500, 100, 50, 25, 20, 17, 12.5, 10, 7.5, 5, 2.5, 1, 0.5, 0.2, 0.1);
+    # Ridge regression
+    parms <- c(50, 25, 20, 17.5, 15, 12.5, 10, 7.5, 5, 2.5, 1);
     out <- kfold.cv(10, X.train, Y.train, cv.ridge, parms);
     ridge.rmse <- sqrt(apply(out, 1, mean));
     lambda <- parms[which.min(ridge.rmse)];
     cat("Ridge lambda parameter", lambda, "\n")
     
     rmod <- lm.ridge(Y~., data.frame(X=X.train, Y=Y.train), lambda=lambda);
-    
     coef <- coef(rmod);
     pred.ridge <- cbind(1, X.test) %*% coef;
     pred.ridge.err <- pred.ridge - Y.test;
     beta.ridge.err <- unname(coef - exact.b);
     betadf <- rbind(betadf, data.frame(niter=niter, ntrain=ntrain, type="ridge", err=beta.ridge.err, beta=0:15));
+    preddf <- rbind(preddf, data.frame(niter=niter, ntrain=ntrain, type="ridge", err=pred.ridge.err));
   }
 }
+
+aggregate(err~beta+type+ntrain, data=betadf, FUN=mean);
+aggregate(err~beta+type+ntrain, data=betadf, FUN=var);
+aggregate(err~beta+type+ntrain, data=betadf, FUN=function(x) mean(x^2));
+
+aggregate(err~type+ntrain, data=preddf, FUN=mean);
+aggregate(err~type+ntrain, data=preddf, FUN=var);
+aggregate(err~type+ntrain, data=preddf, FUN=function(x) mean(x^2));
+
