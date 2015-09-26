@@ -75,7 +75,7 @@ betadf <- data.frame();
 preddf <- data.frame();
 
 for (experiment in 1:3) {
-  niter <- c(1000, 500, 200)[experiment];
+  niter <- c(200, 100, 50)[experiment];
   ntrain <- c(20, 100, 500)[experiment];
   
   for (iter in 1:niter) {
@@ -85,7 +85,7 @@ for (experiment in 1:3) {
     X.train <- exact.generateX(ntrain);
     Y.train <- exact.generateY(X.train);
     
-    X.test <- exact.generateX(1000);
+    X.test <- exact.generateX(500);
     Y.test <- exact.generateY(X.test);
     
     lmod <- lm(Y~., data.frame(X=X.train, Y=Y.train));
